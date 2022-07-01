@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:location/location.dart';
 import 'package:untitled/globals.dart' as globals;
+import 'package:untitled/constants.dart' as constant;
 
 class DeliveryScreen extends StatefulWidget {
   const DeliveryScreen({Key? key}) : super(key: key);
@@ -10,14 +14,87 @@ class DeliveryScreen extends StatefulWidget {
 }
 
 class _DeliveryScreenState extends State<DeliveryScreen> {
- 
+  final Completer<GoogleMapController> _controller = Completer();
+
+  static const LatLng sourceLocation = LatLng(37.4221, -122.0841);
+  static const LatLng destination = LatLng(37.4116, -122.0713);
+
+  List<LatLng> polylineCoordinates = [];
+  LocationData? currentLocation;
+
+  BitmapDescriptor sourceIcon = BitmapDescriptor.defaultMarker;
+  BitmapDescriptor destinationIcon = BitmapDescriptor.defaultMarker;
+  BitmapDescriptor currentLocationIcon = BitmapDescriptor.defaultMarker;
+
+  void getCurrentLocation() async {
+    Location location = Location();
+
+    location.getLocation().then(
+          (location) => currentLocation = location,
+        );
+
+    GoogleMapController googleMapController = await _controller.future;
+    location.onLocationChanged.listen((newLoc) {
+      currentLocation = newLoc;
+
+      googleMapController.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            zoom: 14.5,
+            target: LatLng(newLoc.latitude!, newLoc.longitude!),
+          ),
+        ),
+      );
+      setState(() {});
+    });
+  }
+
+  void getPolyPoints() async {
+    PolylinePoints polylinePoints = PolylinePoints();
+
+    PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
+      constant.google_api_key,
+      PointLatLng(sourceLocation.latitude, sourceLocation.longitude),
+      PointLatLng(destination.latitude, destination.longitude),
+    );
+
+    if (result.points.isNotEmpty) {
+      for (var point in result.points) {
+        polylineCoordinates.add(
+          LatLng(point.latitude, point.longitude),
+        );
+        setState(() {
+          polylineCoordinates;
+        });
+      }
+    }
+  }
+
+  void setCustomMarkerIcon() {
+    BitmapDescriptor.fromAssetImage(
+            ImageConfiguration.empty, "assets/images/geo-point.png")
+        .then((icon) => sourceIcon = icon);
+    BitmapDescriptor.fromAssetImage(
+            ImageConfiguration.empty, "assets/images/geotag.png")
+        .then((icon) => destinationIcon = icon);
+    BitmapDescriptor.fromAssetImage(
+            ImageConfiguration.empty, "assets/images/geo-point.png")
+        .then((icon) => currentLocationIcon = icon);
+  }
+
+  @override
+  void initState() {
+    getCurrentLocation();
+    setCustomMarkerIcon();
+    getPolyPoints();
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        backgroundColor:
-            globals.backgroundColor(),
+        backgroundColor: globals.backgroundColor(),
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           elevation: 0,
@@ -28,7 +105,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               onPressed: () {
                 Navigator.pop(context);
               },
-              icon:Icon(
+              icon: Icon(
                 Icons.arrow_back_ios,
                 color: globals.textColor(),
               ),
@@ -39,7 +116,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               padding: const EdgeInsets.only(right: 15.0),
               child: Builder(
                 builder: (context) => IconButton(
-                  icon:  Icon(
+                  icon: Icon(
                     Icons.drag_handle,
                     color: globals.textColor(),
                     size: 40,
@@ -51,8 +128,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           ],
         ),
         endDrawer: Drawer(
-          backgroundColor:
-              globals.backgroundColor(),
+          backgroundColor: globals.backgroundColor(),
           child: ListView(
             children: [
               DrawerHeader(
@@ -79,131 +155,53 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ],
           ),
         ),
-        body: SingleChildScrollView(
-          child: Container(
-            height: MediaQuery.of(context).size.height,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(
-                  "assets/images/map.png",
-                ),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-              Row(
-                children: [
-                  Image.asset("assets/images/delivery-guy.png"),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "David Morel",
-                        style: TextStyle(
-                          color: globals.textColor(),
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        "4.9 based on 100 ratings",
-                        style: TextStyle(
-                          color: globals.subtextColor(),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+        body: Expanded(
+          child: currentLocation == null
+              ? const Center(
+                  child: Text("Loading"),
+                )
+              : GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: LatLng(currentLocation!.latitude!,
+                        currentLocation!.longitude!),
+                    zoom: 14.5,
                   ),
-                ],
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20.0, vertical: 5),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Image.asset("assets/images/delivery-icons.png"),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Your delivery time",
-                                    style: TextStyle(
-                                      color: globals.subtextColor(),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    "15 minutes",
-                                    style: TextStyle(
-                                      color: globals.textColor(),
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(
-                                height: 30,
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Your address",
-                                    style: TextStyle(
-                                      color: globals.subtextColor(),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Wisteria st 30, Houston, TX",
-                                    style: TextStyle(
-                                      color: globals.textColor(),
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  polylines: {
+                    Polyline(
+                      polylineId: const PolylineId("route"),
+                      points: polylineCoordinates,
+                      color: Colors.blue,
+                      width: 6,
                     ),
-                    SizedBox(
-                      width: 65,
-                      height: 65,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          shape: const CircleBorder(),
-                          primary: const Color(0xff4E60FF),
-                        ),
-                        onPressed: () {
-                         
-                        },
-                        child: Icon(
-                          Icons.phone_outlined,
-                          color:globals.backgroundColor(),
-                          size: 35,
-                        ),
+                  },
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId(
+                        "source",
                       ),
+                      position: sourceLocation,
+                      icon: sourceIcon,
                     ),
-                  ],
+                    Marker(
+                      markerId: const MarkerId(
+                        "destination",
+                      ),
+                      position: destination,
+                      icon: destinationIcon,
+                    ),
+                    Marker(
+                      markerId: const MarkerId(
+                        "current location",
+                      ),
+                      position: LatLng(currentLocation!.latitude!,
+                          currentLocation!.longitude!),
+                      icon: currentLocationIcon,
+                    ),
+                  },
+                  onMapCreated: (mapController) {
+                    _controller.complete(mapController);
+                  },
                 ),
-              ),
-            ]),
-          ),
         ),
       ),
     );
